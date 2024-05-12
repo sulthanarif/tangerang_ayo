@@ -101,7 +101,12 @@
           ); // Jarak dalam meter
           const speed = 20; // Kecepatan rata-rata bus dalam m/s (sesuaikan jika perlu)
           const estimatedTime = distanceToStop / speed; // Waktu tempuh dalam detik
+          if (distanceToStop <= 100) {
+            return "Tiba";
+          } else {
+            return formatTime(estimatedTime);
           return formatTime(estimatedTime);
+          }
         }
 
         addBus(busMarker, targetBusStop) {
