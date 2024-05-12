@@ -24,29 +24,24 @@
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css"
     />
-
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet-responsive-popup@1.0.0/leaflet.responsive.popup.css"
     />
     <script src="https://unpkg.com/leaflet-responsive-popup@1.0.0/leaflet.responsive.popup.js"></script>
     <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet@1.2.0/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
     <script src="Leaflet.Coordinates/dist/Leaflet.Coordinates-0.1.5.min.js"></script>
   </head>
 
   <body>
     <div id="map" style="height: 100vh"></div>
-
     <script>
       var map = L.map("map").setView([-6.2074836, 106.6037775], 13);
-
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       }).addTo(map);
-
       L.control
         .coordinates({
           position: "bottomleft",
@@ -89,52 +84,104 @@
         }),
       };
 
-      var marker = {
-        "koridor-1": L.marker([-6.175304905620621, 106.64647013286424], {
-          icon: markerIcons["koridor-1"],
-        })
-          .addTo(map)
-          .bindPopup("jatake"),
-        "koridor-2": L.marker([-6.1753744, 106.6447591], {
-          icon: markerIcons["koridor-2"],
-        })
-          .addTo(map)
-          .bindPopup("Tanah Tinggi"),
-      };
-
-      //bus marker
-      var busMarker = {
-        "koridor-1": L.marker([-6.2002793, 106.5740835], {
-          icon: busIcons["koridor-1"],
-        }).addTo(map),
-        "koridor-2": L.marker([-6.1753744, 106.6447591], {
-          icon: busIcons["koridor-2"],
-        }).addTo(map),
-      };
-
-      class Busses {
-        constructor(code,plat,corridor, lat, lng) {
+      class Bus {
+        constructor(code, plat, corridor, lat, lng) {
           this.code = code;
           this.plat = plat;
           this.corridor = corridor;
-          this.speed = 0;
-          this.nextStop = "";
-          this.distanceToBusStop = 0;
-          this.position = L.latLng(lat, lng);
+          this.position = L.latLng(lat, lng); // Initialize position as L.LatLng
+          this.busMarker = null;
+          this.nextStop = ""; // Inisialisasi nextStop
+          this.distanceToNextStop = 0; // Inisialisasi distanceToNextStop
+        }
+
+        calculateETA(targetBusStop) {
+          const distanceToStop = this.position.distanceTo(
+            targetBusStop.position
+          ); // Jarak dalam meter
+          const speed = 20; // Kecepatan rata-rata bus dalam m/s (sesuaikan jika perlu)
+          const estimatedTime = distanceToStop / speed; // Waktu tempuh dalam detik
+          return formatTime(estimatedTime);
+        }
+
+        addBus(busMarker, targetBusStop) {
+          this.busMarker = L.marker(this.position, {
+            icon: busIcons[this.corridor],
+          }).addTo(map);
+
+          this.updateRoute(targetBusStop);
+
+          this.busMarker.bindPopup(
+            `<div>
+                <h1><b>${this.code}</b></h1>
+                <img src="img/${this.corridor}.svg" style="width:48px;">
+                <p>${this.plat}</p>
+                <p>Next Stop: ${this.nextStop}</p>
+                <p>Distance to next stop: ${this.distanceToNextStop.toFixed(
+                  0
+                )} m</p>
+              </div>`
+          );
+        }
+
+        // Method untuk menghitung jarak bus dari pemberhentian selanjutnya
+        calculateDistanceToNextStop() {
+          // Hitung jarak dari posisi bus ke pemberhentian selanjutnya
+          const distance = this.position.distanceTo(this.nextStop.position);
+          return distance;
+        }
+
+        // Method untuk menampilkan estimasi waktu kedatangan
+        showArrivalEstimation() {
+          // Hitung estimasi waktu kedatangan berdasarkan kecepatan rata-rata
+          const speed = 10; // Kecepatan rata-rata bus dalam meter/detik
+          const arrivalTime = this.distanceToNextBusStop / speed;
+          return formatTime(arrivalTime);
+        }
+
+        async updateRoute(targetBusStop) {
+          if (targetBusStop) {
+            try {
+              const response = await fetch(
+                `http://router.project-osrm.org/route/v1/driving/${this.position.lng},${this.position.lat};${targetBusStop.position.lng},${targetBusStop.position.lat}?overview=false` //tadinya pake nextStopLatLng
+              );
+              if (!response.ok) {
+                throw new Error("Failed to fetch route data");
+              }
+              const routeData = await response.json();
+              this.nextStop = targetBusStop; // Update nextStop
+              this.distanceToNextStop = routeData.routes[0].distance;
+            } catch (error) {
+              console.error("Error fetching route data:", error);
+              // Handle error (e.g., set default values for distance and arrival time)
+            }
+          }
         }
       }
-
-
-
 
       class BusStop {
         constructor(name, lat, lng) {
           this.name = name;
-          this.corridor = [];
+          this.corridors = []; // Menggunakan array untuk menyimpan daftar koridor
           this.position = L.latLng(lat, lng);
           this.nextStop = "";
-          this.distanceToNextStop = 0; // Tambahkan properti untuk jarak
-          this.estimatedArrivalTime = ""; // Tambahkan properti untuk estimasi waktu
+          this.distanceToNextStop = 0;
+          this.estimatedArrivalTime = "";
+        }
+
+        // Method untuk menambahkan koridor ke halte
+        addCorridor(corridorName) {
+          if (!this.corridors.includes(corridorName)) {
+            this.corridors.push(corridorName);
+          }
+        }
+
+        // Method untuk menghapus koridor dari halte
+        removeCorridor(corridorName) {
+          const index = this.corridors.indexOf(corridorName);
+          if (index !== -1) {
+            this.corridors.splice(index, 1);
+          }
         }
       }
 
@@ -143,37 +190,58 @@
           this.name = name;
           this.busStops = {};
           this.busStopMarkers = {};
+          this.buses = []; // Array untuk menyimpan bus-bus dalam koridor
         }
 
         async addBusStop(busStop, targetBusStop) {
-  this.busStops[busStop.name] = busStop;
-  this.busStopMarkers[busStop.name] = L.marker(busStop.position, {
-    icon: markerIcons[this.name],
-  }).addTo(map).bindPopup(busStop.name); // Menambahkan marker ke peta
+          this.busStops[busStop.name] = busStop;
+          // console.log(this.busStops); //kenapa isinya undefined
+          this.busStopMarkers[busStop.name] = L.marker(
+            busStop.position,
+            {
+              icon: markerIcons[this.name],
+            }
+          )
+            .addTo(map)
+            .bindPopup(
+              // isi popup image dari koriidor 1 dan 2 jika halte memiliki koridor 1 dan 2
 
-  if (targetBusStop) {
-    const currentStopLatLng = `${busStop.position.lng},${busStop.position.lat}`;
-    const nextStopLatLng = `${targetBusStop.position.lng},${targetBusStop.position.lat}`;
-    try {
-      const response = await fetch(
-        `http://router.project-osrm.org/route/v1/driving/${currentStopLatLng};${nextStopLatLng}?overview=false`
-      );
-      if (!response.ok) {
-        throw new Error('Failed to fetch route data');
-      }
-      const routeData = await response.json();
-      const speed = 10;
-      busStop.nextStop = targetBusStop.name;
-      busStop.distanceToNextStop = routeData.routes[0].distance;
-      busStop.estimatedArrivalTime = formatTime(routeData.routes[0].distance / speed);
-    } catch (error) {
-      console.error('Error fetching route data:', error);
-      // Handle error (e.g., set default values for distance and arrival time)
-    }
-  }
-}
+              `<div>
+                        <img src="img/${this.name}.svg" style="width:48px;">
+                        <h1><b>${busStop.name}</b></h1>
+                    </div>`
+            );
 
+          if (targetBusStop) {
+            const previousBusStop = Object.values(this.busStops).slice(
+              -2
+            )[0];
+            const previousStopLatLng = `${previousBusStop.position.lng},${previousBusStop.position.lat}`;
+            const currentStopLatLng = `${busStop.position.lng},${busStop.position.lat}`;
+            const nextStopLatLng = `${targetBusStop.position.lng},${targetBusStop.position.lat}`;
+            // const speed = 20; // Kecepatan rata-rata bus dalam m/s
+            try {
+              const response = await fetch(
+                `http://router.project-osrm.org/route/v1/driving/${currentStopLatLng};${nextStopLatLng}?overview=false` //tadinya pake nextStopLatLng
+              );
+              if (!response.ok) {
+                throw new Error("Failed to fetch route data");
+              }
+              const routeData = await response.json();
+              busStop.nextStop = targetBusStop.name;
+              busStop.distanceToNextStop = routeData.routes[0].distance;
 
+              //   busStop.estimatedArrivalTime = formatTime(routeData.routes[0].duration);
+              //   busStop.estimatedArrivalTime = formatTime(
+              //     routeData.routes[0].distance / speed
+              //   );
+            } catch (error) {
+              console.error("Error fetching route data:", error);
+              // Handle error (e.g., set default values for distance and arrival time)
+            }
+          }
+          busStop.addCorridor(this.name);
+        }
 
         getBusStop(name) {
           return this.busStops[name];
@@ -183,9 +251,13 @@
           return Object.values(this.busStops);
         }
 
+        // Tambahkan method untuk menambahkan bus ke koridor
+        addBus(bus) {
+          this.buses.push(bus);
+        }
       }
 
-      function createRoutingControl(corridors, busMarker, map) {
+      function createRoutingControl(corridors, map) {
         const corridorColors = {
           "koridor-1": "blue",
           "koridor-2": "yellow",
@@ -200,6 +272,7 @@
             waypoints: waypoints,
             routeWhileDragging: false,
             show: false,
+            dragableWaypoints: false,
             lineOptions: {
               styles: [
                 {
@@ -218,32 +291,109 @@
               var coordinates = route.coordinates;
 
               var summary = e.routes[0].summary;
-              console.log(summary);
-              moveBus(busMarker[corridor.name], coordinates);
+
+              // Inisialisasi bus dan tambahkan ke koridor
+              var bus = new Bus(
+                "B-1234",
+                "B 1234 ABC",
+                corridor.name,
+                coordinates[0].lat,
+                coordinates[0].lng
+              );
+              corridor.addBus(bus);
+              bus.addBus(bus, corridor.getBusStop("Lembaga Sosial"));
+              moveBus(bus, coordinates, corridor);
             })
             .addTo(map);
         });
+      }
 
-        // marker.on("click", function (e) {
-        //   const busStop = e.target.options.busStop;
-        //   // Assuming you've stored the BusStop object in the marker options
-        //   const popupContent = `<b>${
-        //     busStop.name
-        //   }</b><br>Jarak ke halte berikutnya: ${busStop.distanceToNextStop.toFixed(
-        //     0
-        //   )} meter<br>Estimasi waktu kedatangan: ${
-        //     busStop.estimatedArrivalTime
-        //   }`;
-        //   L.popup()
-        //     .setContent(popupContent)
-        //     .setLatLng(busStop.position)
-        //     .openOn(map);
-        // });
-        // corridors.forEach((corridor) => {
-        //   // ...
-        //   corridor.calculateDistancesAndETA(10); // Contoh: kecepatan rata-rata 20 m/s
-        //   // ...
-        // });
+      function moveBus(bus, coordinates, corridor) {
+        var index = 0;
+        var currentBusStopIndex = 0;
+        var speed = 20; // Kecepatan dalam meter per detik
+        var interval = 100; // Interval update dalam milidetik
+        
+        function animate() {
+          if (index < coordinates.length - 1) {
+            // Hitung jarak ke target coordinate
+            var distanceToTarget = bus.position.distanceTo(
+              coordinates[index + 1]
+            );
+            // Hitung berapa jauh bus harus bergerak dalam interval ini
+            var distanceToMove = speed * (interval / 1000);
+            // Jika bus mencapai target coordinate, pindah ke coordinate selanjutnya
+            if (distanceToMove >= distanceToTarget) {
+              index++;
+              bus.position = L.latLng(coordinates[index]);
+            } else {
+              // Jika belum mencapai target, gerakkan bus secara bertahap
+              // Hapus bagian perhitungan bearing
+              bus.position = L.latLng(
+                (bus.position.lat + coordinates[index + 1].lat) / 2,
+                (bus.position.lng + coordinates[index + 1].lng) / 2
+              );
+            }
+
+            bus.busMarker.setLatLng(bus.position);
+
+            const nextBusStop =
+              corridor.busStops[
+                Object.keys(corridor.busStops)[currentBusStopIndex + 1]
+              ];
+            if (nextBusStop) {
+              const distanceToNextStop = bus.position.distanceTo(
+                nextBusStop.position
+              );
+              const estimatedArrivalTime = bus.calculateETA(nextBusStop);
+
+              bus.busMarker.setPopupContent(
+                `<div>
+                      <h1><b>${bus.code}</b></h1>
+                      <img src="img/${bus.corridor}.svg" style="width:48px;">
+                      <p>${bus.plat}</p>
+                      <p>Next Stop: ${nextBusStop.name}</p>
+                      <p>Distance to next stop: ${distanceToNextStop.toFixed(
+                        0
+                      )} m</p>
+                      <p>Estimated arrival: ${estimatedArrivalTime}</p>
+                    </div>`
+              );
+
+              // Update popup content for bus stops
+              corridor.busStopMarkers[
+                nextBusStop.name
+              ].setPopupContent(
+                `<div>
+                        <img src="img/${corridor.name}.svg" style="width:48px;">
+                        <h1><b>${nextBusStop.name}</b></h1>
+                        <p>Bus ${bus.code} arriving in: ${estimatedArrivalTime}</p>
+                      </div>`
+              );
+
+              // Jika bus mencapai halte, update index halte selanjutnya
+              if (distanceToNextStop <= 10) {
+                currentBusStopIndex++;
+              }
+            }
+
+            setTimeout(animate, interval);
+          } else {
+            // Jika bus mencapai akhir rute, kembali ke awal
+            index = 0;
+            currentBusStopIndex = 0;
+            bus.position = L.latLng(coordinates[0]);
+            animate();
+          }
+        }
+        animate();
+      }
+
+      function formatTime(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const remainingSeconds = Math.ceil(seconds % 60);
+        return `${hours} jam ${minutes} menit ${remainingSeconds} detik`;
       }
 
       // Membuat instance dari kelas BusStop
@@ -253,16 +403,40 @@
         -6.1662847,
         106.6468223
       );
-      const tanahTinggi = new BusStop("Stasiun Tanah Tinggi",-6.175304905620621,106.64647013286424);
-      const porisPlawad = new BusStop("Poris Plawad",-6.173535208406348,106.66384935389944);
+      const tanahTinggi = new BusStop(
+        "Stasiun Tanah Tinggi",
+        -6.175304905620621,
+        106.64647013286424
+      );
+      const porisPlawad = new BusStop(
+        "Poris Plawad",
+        -6.173535208406348,
+        106.66384935389944
+      );
       const imigrasi = new BusStop("Imigrasi", -6.1705643, 106.6438538);
-      const smpNegeri5Tangerang = new BusStop("SMP Negeri 5 Tangerang",-6.1673159,106.641795);
+      const smpNegeri5Tangerang = new BusStop(
+        "SMP Negeri 5 Tangerang",
+        -6.1673159,
+        106.641795
+      );
       const tamanPisang = new BusStop("Taman Pisang", -6.210759, 106.6147218);
       const sawo = new BusStop("Sawo", -6.2140173, 106.6093523);
       const borobudur = new BusStop("Borobudur", -6.2146956, 106.6018589);
-      const alunAlunPam = new BusStop("Alun-Alun PAM Cibodas",-6.2071704,106.605293);
-      const smpn6Tangerang = new BusStop("SMP Negeri 6 Tangerang",-6.2074886,106.6132225);
-      const terminalCimone = new BusStop("Terminal Cimone",-6.186198256476928,106.61542744880222);
+      const alunAlunPam = new BusStop(
+        "Alun-Alun PAM Cibodas",
+        -6.2071704,
+        106.605293
+      );
+      const smpn6Tangerang = new BusStop(
+        "SMP Negeri 6 Tangerang",
+        -6.2074886,
+        106.6132225
+      );
+      const terminalCimone = new BusStop(
+        "Terminal Cimone",
+        -6.186198256476928,
+        106.61542744880222
+      );
       // Membuat instance dari kelas Corridor
       const corridor1 = new Corridor("koridor-1");
       const corridor2 = new Corridor("koridor-2");
@@ -276,39 +450,20 @@
       corridor1.addBusStop(smpNegeri5Tangerang, terminalCimone);
       corridor1.addBusStop(terminalCimone, jatake);
 
-      corridor2.addBusStop(porisPlawad);
-      corridor2.addBusStop(tamanPisang);
-      corridor2.addBusStop(sawo);
-      corridor2.addBusStop(borobudur);
-      corridor2.addBusStop(alunAlunPam);
-      corridor2.addBusStop(smpn6Tangerang);
-      corridor2.addBusStop(tanahTinggi);
+      corridor2.addBusStop(porisPlawad, tamanPisang);
+      corridor2.addBusStop(tamanPisang, sawo);
+      corridor2.addBusStop(sawo, borobudur);
+      corridor2.addBusStop(borobudur, alunAlunPam);
+      corridor2.addBusStop(alunAlunPam, smpn6Tangerang);
+      corridor2.addBusStop(smpn6Tangerang, tanahTinggi);
+      corridor2.addBusStop(tanahTinggi, porisPlawad);
 
       // Membuat array dari Corridor
       const corridors = [corridor1, corridor2];
       // tambahkan Corridor lainnya ke array di sini
       console.log(corridors);
       // Membuat Routing Control untuk setiap Corridor
-      const routingControls = createRoutingControl(corridors, busMarker, map);
-
-      function moveBus(busMarker, coordinates) {
-        var index = 0;
-
-        function animate() {
-          busMarker.setLatLng(coordinates[index]);
-          index = (index + 1) % coordinates.length; // Loop ke titik awal setelah mencapai titik terakhir
-          setTimeout(animate, 5000); // Mengatur kecepatan pergerakan bus
-        }
-
-        animate();
-      }
-
-      function formatTime(seconds) {
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const remainingSeconds = Math.ceil(seconds % 60);
-        return `${hours} jam ${minutes} menit ${remainingSeconds} detik`;
-      }
+      const routingControls = createRoutingControl(corridors, map);
     </script>
   </body>
 </html>
