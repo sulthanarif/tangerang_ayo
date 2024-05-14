@@ -101,12 +101,8 @@
           ); // Jarak dalam meter
           const speed = 20; // Kecepatan rata-rata bus dalam m/s (sesuaikan jika perlu)
           const estimatedTime = distanceToStop / speed; // Waktu tempuh dalam detik
-          if (distanceToStop <= 100) {
-            return "Tiba";
-          } else {
-            return formatTime(estimatedTime);
+
           return formatTime(estimatedTime);
-          }
         }
 
         addBus(busMarker, targetBusStop) {
@@ -115,6 +111,7 @@
           }).addTo(map);
 
           this.updateRoute(targetBusStop);
+          console.log(targetBusStop);
 
           this.busMarker.bindPopup(
             `<div>
@@ -143,12 +140,15 @@
           const arrivalTime = this.distanceToNextBusStop / speed;
           return formatTime(arrivalTime);
         }
+        
 
         async updateRoute(targetBusStop) {
           if (targetBusStop) {
             try {
+              const nextStopLatLng = `${targetBusStop.position.lng},${targetBusStop.position.lat}`;
+
               const response = await fetch(
-                `http://router.project-osrm.org/route/v1/driving/${this.position.lng},${this.position.lat};${targetBusStop.position.lng},${targetBusStop.position.lat}?overview=false` //tadinya pake nextStopLatLng
+                `http://router.project-osrm.org/route/v1/driving/${this.position.lng},${this.position.lat};${nextStopLatLng}?overview=false`
               );
               if (!response.ok) {
                 throw new Error("Failed to fetch route data");
@@ -163,7 +163,7 @@
           }
         }
       }
-
+      
       class BusStop {
         constructor(name, lat, lng) {
           this.name = name;
@@ -191,8 +191,9 @@
       }
 
       class Corridor {
-        constructor(name) {
+        constructor(name, busCode) {
           this.name = name;
+          this.busCode = busCode; // Menambahkan properti busCode
           this.busStops = {};
           this.busStopMarkers = {};
           this.buses = []; // Array untuk menyimpan bus-bus dalam koridor
@@ -218,16 +219,14 @@
             );
 
           if (targetBusStop) {
-            const previousBusStop = Object.values(this.busStops).slice(
-              -2
-            )[0];
+            const previousBusStop = Object.values(this.busStops).slice(-2)[0];
             const previousStopLatLng = `${previousBusStop.position.lng},${previousBusStop.position.lat}`;
             const currentStopLatLng = `${busStop.position.lng},${busStop.position.lat}`;
             const nextStopLatLng = `${targetBusStop.position.lng},${targetBusStop.position.lat}`;
             // const speed = 20; // Kecepatan rata-rata bus dalam m/s
             try {
               const response = await fetch(
-                `http://router.project-osrm.org/route/v1/driving/${currentStopLatLng};${nextStopLatLng}?overview=false` //tadinya pake nextStopLatLng
+                `http://router.project-osrm.org/route/v1/driving/${currentStopLatLng};${nextStopLatLng}?overview=false` 
               );
               if (!response.ok) {
                 throw new Error("Failed to fetch route data");
@@ -242,7 +241,6 @@
               //   );
             } catch (error) {
               console.error("Error fetching route data:", error);
-              // Handle error (e.g., set default values for distance and arrival time)
             }
           }
           busStop.addCorridor(this.name);
@@ -299,15 +297,20 @@
 
               // Inisialisasi bus dan tambahkan ke koridor
               var bus = new Bus(
-                "B-1234",
+                corridor.busCode, // Gunakan busCode dari koridor
                 "B 1234 ABC",
                 corridor.name,
                 coordinates[0].lat,
                 coordinates[0].lng
               );
               corridor.addBus(bus);
-              bus.addBus(bus, corridor.getBusStop("Lembaga Sosial"));
+              bus.addBus(
+                bus,
+                corridor.getBusStop(Object.keys(corridor.busStops)[0]) 
+              );
               moveBus(bus, coordinates, corridor);
+              console.log(summary);
+              console.log(bus);
             })
             .addTo(map);
         });
@@ -318,7 +321,7 @@
         var currentBusStopIndex = 0;
         var speed = 20; // Kecepatan dalam meter per detik
         var interval = 100; // Interval update dalam milidetik
-        
+
         function animate() {
           if (index < coordinates.length - 1) {
             // Hitung jarak ke target coordinate
@@ -332,8 +335,6 @@
               index++;
               bus.position = L.latLng(coordinates[index]);
             } else {
-              // Jika belum mencapai target, gerakkan bus secara bertahap
-              // Hapus bagian perhitungan bearing
               bus.position = L.latLng(
                 (bus.position.lat + coordinates[index + 1].lat) / 2,
                 (bus.position.lng + coordinates[index + 1].lng) / 2
@@ -341,15 +342,16 @@
             }
 
             bus.busMarker.setLatLng(bus.position);
-
+            
             const nextBusStop =
               corridor.busStops[
-                Object.keys(corridor.busStops)[currentBusStopIndex + 1]
+                Object.keys(corridor.busStops)[currentBusStopIndex + 1] 
               ];
             if (nextBusStop) {
               const distanceToNextStop = bus.position.distanceTo(
                 nextBusStop.position
               );
+              
               const estimatedArrivalTime = bus.calculateETA(nextBusStop);
 
               bus.busMarker.setPopupContent(
@@ -380,6 +382,7 @@
               if (distanceToNextStop <= 10) {
                 currentBusStopIndex++;
               }
+              
             }
 
             setTimeout(animate, interval);
@@ -403,48 +406,21 @@
 
       // Membuat instance dari kelas BusStop
       const jatake = new BusStop("Jatake", -6.2002793, 106.5740835);
-      const lembagaSosial = new BusStop(
-        "Lembaga Sosial",
-        -6.1662847,
-        106.6468223
-      );
-      const tanahTinggi = new BusStop(
-        "Stasiun Tanah Tinggi",
-        -6.175304905620621,
-        106.64647013286424
-      );
-      const porisPlawad = new BusStop(
-        "Poris Plawad",
-        -6.173535208406348,
-        106.66384935389944
-      );
-      const imigrasi = new BusStop("Imigrasi", -6.1705643, 106.6438538);
-      const smpNegeri5Tangerang = new BusStop(
-        "SMP Negeri 5 Tangerang",
-        -6.1673159,
-        106.641795
-      );
-      const tamanPisang = new BusStop("Taman Pisang", -6.210759, 106.6147218);
+      const lembagaSosial = new BusStop("Lembaga Sosial",-6.1662847,106.6468223);
+      const tanahTinggi = new BusStop("Stasiun Tanah Tinggi",-6.175304905620621,106.64647013286424);
+      const porisPlawad = new BusStop("Poris Plawad",-6.173535208406348,106.66384935389944);
+      const imigrasi = new BusStop("Imigrasi", -6.170556675860652, 106.64399913941759);
+      const smpNegeri5Tangerang = new BusStop("SMP Negeri 5 Tangerang",-6.1673159,106.641795);
+      const tamanPisang = new BusStop("Taman Pisang", -6.210780405454813, 106.61488872865408);
       const sawo = new BusStop("Sawo", -6.2140173, 106.6093523);
-      const borobudur = new BusStop("Borobudur", -6.2146956, 106.6018589);
-      const alunAlunPam = new BusStop(
-        "Alun-Alun PAM Cibodas",
-        -6.2071704,
-        106.605293
-      );
-      const smpn6Tangerang = new BusStop(
-        "SMP Negeri 6 Tangerang",
-        -6.2074886,
-        106.6132225
-      );
-      const terminalCimone = new BusStop(
-        "Terminal Cimone",
-        -6.186198256476928,
-        106.61542744880222
-      );
-      // Membuat instance dari kelas Corridor
-      const corridor1 = new Corridor("koridor-1");
-      const corridor2 = new Corridor("koridor-2");
+      const borobudur = new BusStop("Borobudur",  -6.214773198672391,106.60197060283585);
+      const alunAlunPam = new BusStop("Alun-Alun PAM Cibodas", -6.207308325505252,106.60547688823107);
+      const smpn6Tangerang = new BusStop("SMP Negeri 6 Tangerang",-6.2074886,106.6132225);
+      const terminalCimone = new BusStop("Terminal Cimone",-6.186198256476928,106.61542744880222);
+
+      // Membuat instance dari kelas Corridor dengan kode bus yang berbeda
+      const corridor1 = new Corridor("koridor-1", "K001"); 
+      const corridor2 = new Corridor("koridor-2", "K002");
 
       // Menambahkan BusStop ke Corridor
       corridor1.addBusStop(jatake, lembagaSosial);
