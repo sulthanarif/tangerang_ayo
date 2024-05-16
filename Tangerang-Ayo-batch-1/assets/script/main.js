@@ -34,3 +34,5 @@ function formatTime(date) {
 updateDateAndTime(); // Call the function to update the date and time initially
 setInterval(updateDateAndTime, 1000); // Update the date and time every second
 
+// import docoment by id
+ 

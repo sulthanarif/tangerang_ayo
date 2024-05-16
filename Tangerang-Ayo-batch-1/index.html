@@ -81,30 +81,55 @@
                         <th>Estimasi</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr>
-                        <td class="koridor">
-                            <img src="assets/images/koridor-1.svg" alt="Koridor 1" class="koridor">
-                        </td>
-                        <td class="tujuan">Poris Plawad</td> 
-                        <td class="nomor-bus">TY020</td>
-                        <td class="estimasi koridor1-estimasi">13 Menit</td> <!-- Ini adalah tempat di mana estimasi untuk koridor 1 akan ditampilkan -->
-                    </tr>
-                    <tr>
-                        <td class="koridor">
-                            <img src="assets/images/koridor-2.svg" alt="Koridor 2" class="koridor">
-                        </td>
-                        <td class="tujuan">Poris Plawad</td> 
-                        <td class="nomor-bus">TY002</td>
-                        <td class="estimasi koridor2-estimasi">23 Menit</td> <!-- Ini adalah tempat di mana estimasi untuk koridor 2 akan ditampilkan -->
-                    </tr>
+                <tbody id="busSchedule">
+                    <!-- datanya muncul -->
                 </tbody>
             </table>
+            <iframe src="./map.html" id="map"></iframe>
+            
         </section>
     </main>
     
     
 
     <script type="module" src="assets/script/main.js"></script>
+    <script>
+        // Function untuk mengambil data kedatangan bus dari map.html
+        const iframe = document.getElementById('map');
+        const scheduleTable = document.getElementById('busSchedule');
+
+        function updateBusSchedule() {
+          const data = iframe.contentWindow.getBusScheduleData();
+          scheduleTable.innerHTML = '';
+
+          for (const bus of data) {
+            const row = scheduleTable.insertRow();
+            const routeCell = row.insertCell();
+            const tujuanCell = row.insertCell();
+            const busNumberCell = row.insertCell();
+            const estimasiCell = row.insertCell();
+
+            routeCell.textContent = bus.route;
+            tujuanCell.textContent = bus.destination;
+            busNumberCell.textContent = bus.busNumber;
+
+            if (bus.estimatedArrivalTime) {
+              estimasiCell.textContent = bus.estimatedArrivalTime;
+            } else {
+              estimasiCell.textContent = ''; // Estimasi hilang jika bus sudah lewat
+            }
+          }
+        }
+
+        window.addEventListener('message', (event) => {
+          if (event.data.type === 'updateBusSchedule') {
+            updateBusSchedule();
+          }
+        });
+
+        // Panggil fungsi updateBusSchedule pertama kali
+        updateBusSchedule();
+
+      </script>
 </body>
 </html>
