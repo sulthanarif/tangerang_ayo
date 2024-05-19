@@ -159,46 +159,56 @@
           this.busStopMarker = null;
           this.passedBuses = {};
         }
-
         addCorridor(corridorName) {
-          if (!this.corridors.includes(corridorName)) {
-            this.corridors.push(corridorName);
-          }
-        }
+    if (!this.corridors.includes(corridorName)) {
+      this.corridors.push(corridorName);
+    }
+  }
+         addBusArrivalTime(corridorName, busCode, arrivalTime) {
+    // If the bus is already in the arrival times, update its time
+    if (this.busArrivalTimes[corridorName] && this.busArrivalTimes[corridorName][busCode]) {
+      this.busArrivalTimes[corridorName][busCode].arrivalTime = arrivalTime;
+    } else {
+      // If the bus is not in the arrival times, add it
+      if (!this.busArrivalTimes[corridorName]) {
+        this.busArrivalTimes[corridorName] = {};
+      }
+      this.busArrivalTimes[corridorName][busCode] = { busCode, arrivalTime };
+    }
+    this.updatePopup();
+  }
 
-        removeCorridor(corridorName) {
-          const index = this.corridors.indexOf(corridorName);
-          if (index !== -1) {
-            this.corridors.splice(index, 1);
-          }
-        }
+  removeBusArrivalTime(corridorName, busCode) {
+    // Remove the specific bus arrival time from the array
+    if (this.busArrivalTimes[corridorName] && this.busArrivalTimes[corridorName][busCode]) {
+      delete this.busArrivalTimes[corridorName][busCode];
+      // If no more buses for this corridor, remove the corridor
+      if (Object.keys(this.busArrivalTimes[corridorName]).length === 0) {
+        delete this.busArrivalTimes[corridorName];
+      }
+    }
+    this.updatePopup();
+  }
 
-        addBusArrivalTime(corridorName, busCode, arrivalTime) {
-          this.busArrivalTimes[corridorName] = { busCode, arrivalTime };
-          this.updatePopup();
-        }
+  updatePopup() {
+    let popupContent = `<div>`;
+    // Add images for all corridors at the bus stop
+    for (const corridor of this.corridors) {
+      popupContent += `<img src="assets/images/${corridor}.svg" style="width:36px;">`;
+    }
+    popupContent += `<h1><b>${this.name}</b></h1></div>`;
 
-        removeBusArrivalTime(corridorName) {
-          delete this.busArrivalTimes[corridorName];
-          this.updatePopup();
-        }
-
-        updatePopup() {
-          let popupContent = `<div>`;
-          // Tambahkan gambar untuk semua koridor yang ada di halte bus
-          for (const corridor of this.corridors) {
-            popupContent += `<img src="assets/images/${corridor}.svg" style="width:36px;">`;
-          }
-          popupContent += `<h1><b>${this.name}</b></h1></div>`;
-
-          for (const corridor in this.busArrivalTimes) {
-            const arrivalInfo = this.busArrivalTimes[corridor];
-            popupContent += `<p>Bus ${arrivalInfo.busCode} ${corridor} arriving in: ${arrivalInfo.arrivalTime}</p>`;
-          }
-          if (this.busStopMarker) {
-            this.busStopMarker.setPopupContent(popupContent);
-          }
-        }
+    // Loop through all corridors and their arrival times
+    for (const corridor in this.busArrivalTimes) {
+      for (const busCode in this.busArrivalTimes[corridor]) {
+        const arrivalInfo = this.busArrivalTimes[corridor][busCode];
+        popupContent += `<p>Bus ${arrivalInfo.busCode} ${corridor} arriving in: ${arrivalInfo.arrivalTime}</p>`;
+      }
+    }
+    if (this.busStopMarker) {
+      this.busStopMarker.setPopupContent(popupContent);
+    }
+  }
 
         createBusStopMarker(corridorName) {
           let popupContent = `<div style="display:flex;">`;
@@ -217,7 +227,7 @@
 
         markBusPassed(busCode, corridorName) {
           this.passedBuses[busCode + corridorName] = true;
-          this.removeBusArrivalTime(corridorName);
+           this.removeBusArrivalTime(corridorName, busCode);
           this.updatePopup(); // Kembali ke popup awal dan perbarui gambar koridor
         }
       }
@@ -278,11 +288,6 @@
         }
       }
 
-
-
-
-
-
       function createRoutingControl(corridors, map) {
         const corridorColors = {
           "koridor-1": "blue",
@@ -317,7 +322,7 @@
               var summary = e.routes[0].summary;
               var bus = new Bus(
                 "TY" + Math.floor(Math.random() * 90) + 1, // Random number between 10000 and 99999
-                "B " + Math.floor(Math.random() * 9000 + 1000) + " ABC",
+                "B " + Math.floor(Math.random() * 9000 + 1000) + " TAC",
                 corridor.name,
                 coordinates[0].lat,
                 coordinates[0].lng
@@ -348,7 +353,7 @@
           const initialPosition = busStops[0].position;
           const bus = new Bus(
             "TY" + Math.floor(Math.random() * 90) + 1, // Generate random numeric bus code
-            "B " + Math.floor(Math.random() * 9000 + 1000) + " ABC",
+            "B " + Math.floor(Math.random() * 9000 + 1000) + " TAC",
             corridor.name,
             initialPosition.lat,
             initialPosition.lng
@@ -415,7 +420,6 @@
                 nextBusStop.position
               );
               const estimatedArrivalTime = bus.calculateETA(nextBusStop);
-              updateBusSchedule(bus, nextBusStop);
 
               bus.busMarker.setPopupContent(
                 `<div style="font-family: Arial, sans-serif;">
@@ -476,14 +480,10 @@
         }
       }
 
-      // ... (BusStop, Corridor definitions remain the same)
-
-      // ... (createRoutingControl remains the same)
-
       // Membuat instance dari kelas BusStop
       const jatake = new BusStop("Jatake", -6.2002793, 106.5740835);
-      const lembagaSosial = new BusStop(
-        "Lembaga Sosial",
+      const lembagaPermasyarakatan = new BusStop(
+        "Lembaga Permasyarakatan",
         -6.1662847,
         106.6468223
       );
@@ -535,12 +535,12 @@
       );
 
       // Membuat instance dari kelas Corridor dengan kode bus yang berbeda
-      const corridor1 = new Corridor("koridor-1", "K1");
-      const corridor2 = new Corridor("koridor-2", "K2");
+      const corridor1 = new Corridor("koridor-1");
+      const corridor2 = new Corridor("koridor-2");
 
       // Menambahkan BusStop ke Corridor
-      corridor1.addBusStop(jatake, lembagaSosial);
-      corridor1.addBusStop(lembagaSosial, tanahTinggi);
+      corridor1.addBusStop(jatake, lembagaPermasyarakatan);
+      corridor1.addBusStop(lembagaPermasyarakatan, tanahTinggi);
       corridor1.addBusStop(tanahTinggi, porisPlawad);
       corridor1.addBusStop(porisPlawad, imigrasi);
       corridor1.addBusStop(imigrasi, smpNegeri5Tangerang);
@@ -562,44 +562,46 @@
 
       // Membuat Routing Control untuk setiap Corridor
       const routingControls = createRoutingControl(corridors, map);
-      let busScheduleData = [];
 
-// Function untuk mendapatkan data penjadwalan bus dari map.html
-function getBusScheduleData() {
-  return busScheduleData;
-}
+      // Function to update bus arrival times in Tanah Tinggi
+      function updateBusArrivals() {
+        const busArrivals = [];
+        for (const corridor of corridors) {
+          const tanahTinggiStop = corridor.getBusStop('Stasiun Tanah Tinggi');
+          if (tanahTinggiStop && Object.keys(tanahTinggiStop.busArrivalTimes).length > 0) {
+            for (const corridorName in tanahTinggiStop.busArrivalTimes) {
+              const arrivalInfo = tanahTinggiStop.busArrivalTimes[corridorName];
+              busArrivals.push({
+                code: arrivalInfo.busCode,
+                corridor: corridor.name,
+                destination: corridor.getAllBusStops()[0].name, // Get the starting point of the corridor
+                estimatedArrivalTime: arrivalInfo.arrivalTime
+              });
+            }
+          }
+        }
 
-function updateBusSchedule(bus, nextBusStop) {
-  const busScheduleEntry = {
-    //rute nya gambar koridor yang ada di halte bus
-    route: bus.currentRoute,
-    destination: nextBusStop.name,
-    busNumber: bus.code,
-    estimatedArrivalTime: bus.calculateETA(nextBusStop),
-  };
+        // Send the bus arrival data to index.html
+        window.parent.postMessage({ type: 'busArrival', busArrivals }, '*');
+      }
 
-  // Mencari jika bus sudah ada dalam schedule
-  const existingEntryIndex = busScheduleData.findIndex(
-    (entry) =>
-      entry.busNumber === bus.code &&
-      entry.destination === nextBusStop.name
-  );
+      // Send an initial message to index.html on load
+      updateBusArrivals();
 
-  if (existingEntryIndex !== -1) {
-    // Update data penjadwalan jika bus sudah ada
-    busScheduleData[existingEntryIndex] = busScheduleEntry;
-  } else {
-    // Tambahkan data penjadwalan jika bus belum ada
-    busScheduleData.push(busScheduleEntry);
-  }
+      // Function to send a message to index.html to request the bus arrival data
+      function requestBusArrivals() {
+        updateBusArrivals();
+      }
 
-  // Kirim pesan ke index.html untuk memperbarui tabel
-  window.parent.postMessage(
-    { type: 'updateBusSchedule', data: busScheduleData },
-    '*'
-  );
-}
-window.getBusScheduleData = getBusScheduleData;
+      // Listen for message from index.html
+      window.addEventListener('message', (event) => {
+        if (event.data.type === 'requestBusArrivals') {
+          requestBusArrivals();
+        }
+      });
+
+      // Schedule new buses every 5 minutes
+     
     </script>
   </body>
 </html>

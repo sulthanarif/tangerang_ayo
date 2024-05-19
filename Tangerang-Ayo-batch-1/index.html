@@ -83,6 +83,10 @@
                 </thead>
                 <tbody id="busSchedule">
                     <!-- datanya muncul -->
+                    <!-- Rute nya gambar koridor dari bus nya -->
+                    <!-- Tujuan nya dari ke poris plawad-->
+                    <!-- Nomor bus nya -->
+                    <!-- Estimasi waktu kedatangan bus dari 2 halte sebelum halte stasiun tanah tinggi dan menghilang saat bus melintas halte stasiun tanah tinggi-->
                 </tbody>
             </table>
             <iframe src="./map.html" id="map"></iframe>
@@ -94,42 +98,35 @@
 
     <script type="module" src="assets/script/main.js"></script>
     <script>
-        // Function untuk mengambil data kedatangan bus dari map.html
-        const iframe = document.getElementById('map');
-        const scheduleTable = document.getElementById('busSchedule');
+        // Function to display the bus arrival data in the table
+        function displayBusArrivals(busArrivals) {
+            const busScheduleTableBody = document.getElementById('busSchedule');
+            busScheduleTableBody.innerHTML = ''; // Clear existing table content
 
-        function updateBusSchedule() {
-          const data = iframe.contentWindow.getBusScheduleData();
-          scheduleTable.innerHTML = '';
+            busArrivals.forEach(bus => {
+                const row = busScheduleTableBody.insertRow();
+                
+                // Create cells for each data point
+                const corridorCell = row.insertCell();
+                const destinationCell = row.insertCell();
+                const codeCell = row.insertCell();
+                const estimationCell = row.insertCell();
 
-          for (const bus of data) {
-            const row = scheduleTable.insertRow();
-            const routeCell = row.insertCell();
-            const tujuanCell = row.insertCell();
-            const busNumberCell = row.insertCell();
-            const estimasiCell = row.insertCell();
-
-            routeCell.textContent = bus.route;
-            tujuanCell.textContent = bus.destination;
-            busNumberCell.textContent = bus.busNumber;
-
-            if (bus.estimatedArrivalTime) {
-              estimasiCell.textContent = bus.estimatedArrivalTime;
-            } else {
-              estimasiCell.textContent = ''; // Estimasi hilang jika bus sudah lewat
-            }
-          }
+                // Add content to the cells based on the bus data
+                corridorCell.innerHTML = `<img src="assets/images/${bus.corridor}.svg" alt="${bus.corridor}" class="koridor">`;
+                destinationCell.textContent = bus.destination;
+                codeCell.textContent = bus.code;
+                estimationCell.textContent = bus.estimatedArrivalTime;
+            });
         }
 
+        // Event listener to receive messages from map.html
         window.addEventListener('message', (event) => {
-          if (event.data.type === 'updateBusSchedule') {
-            updateBusSchedule();
-          }
+            if (event.data.type === 'busArrival') {
+                const busArrivals = event.data.busArrivals;
+                displayBusArrivals(busArrivals); // Call the display function
+            }
         });
-
-        // Panggil fungsi updateBusSchedule pertama kali
-        updateBusSchedule();
-
-      </script>
+    </script>
 </body>
 </html>
