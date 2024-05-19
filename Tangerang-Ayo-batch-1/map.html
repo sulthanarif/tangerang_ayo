@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html>
 <html>
 
@@ -513,7 +515,42 @@
     // Membuat Routing Control untuk setiap Corridor
     const routingControls = createRoutingControl(corridors, map);
 
-    // Schedule new buses every 5 minutes
+  
+
+    // Send bus arrival data to index.html
+    setInterval(() => {
+  const busArrivals = []; // Clear the array at the start of each iteration
+  const uniqueBuses = new Set(); // To track unique buses by a combination of their properties
+
+  corridors.forEach((corridor) => {
+    corridor.getAllBusStops().forEach((busStop) => {
+      // Check if the bus stop is Tanah Tinggi
+      if (busStop.name === "Stasiun Tanah Tinggi") {
+        // Iterate through arrival times at the current stop
+        for (const corridorName in busStop.busArrivalTimes) {
+          for (const busCode in busStop.busArrivalTimes[corridorName]) {
+            const arrivalInfo = busStop.busArrivalTimes[corridorName][busCode];
+            const busKey = `${corridorName}-${busStop.name}-${arrivalInfo.busCode}`;
+
+            if (!uniqueBuses.has(busKey)) {
+              uniqueBuses.add(busKey);
+
+              busArrivals.push({
+                corridor: corridorName,
+                destination: "Poris Plawad",
+                code: arrivalInfo.busCode,
+                estimatedArrivalTime: arrivalInfo.arrivalTime,
+              });
+            }
+          }
+        }
+      }
+    });
+  });
+
+  // Send the bus arrival data to index.html
+  window.parent.postMessage({ type: "busArrival", busArrivals }, "*");
+}, 1000); // Update every 1 second
 
   </script>
 </body>

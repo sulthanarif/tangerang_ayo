@@ -42,12 +42,13 @@ h1 {
 
   .container {
     margin: 0;
-    max-width: 1440px;
+    max-width: 100%;
     padding: 1rem;
     padding-top: 0;
   }
 
   header nav {
+    max-width: 100%;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -60,6 +61,7 @@ h1 {
 /* Information bar */
 .information-bar {
     background-color: #269BCD;
+    max-width: 100%;
     color: #F9FAFC;
     padding: 0.4rem 1rem;
     text-align: center;
@@ -71,7 +73,7 @@ h1 {
 
 .information-bar .time {
     font-weight: bold;
-    min-width: 90px;
+    min-width: 90px
 }
 
 .information-bar .date {
